@@ -1,0 +1,234 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cotizador Interno de Fletes de Importación | CINTAC</title>
+<link rel="stylesheet" href="{% static 'cotizador/css/app.css' %}">
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<section id="login">
+  <div class="login-hero">
+    <h1>Cotizador Interno de Fletes de Importación
+      <small>Gerencia de Abastecimiento · COMEX</small></h1>
+
+    <div class="login-card">
+      <h2>Iniciar sesión</h2>
+      <p>Ingresa con tus credenciales corporativas.</p>
+      <form id="loginForm" autocomplete="off">
+        <div class="field">
+          <label for="user">Correo / Usuario</label>
+          <input type="text" id="user" placeholder="Ej: analista1" autofocus>
+        </div>
+        <div class="field">
+          <label for="pass">Contraseña</label>
+          <input type="password" id="pass" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Ingresar</button>
+        <div class="error" id="loginError" role="alert" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="login-foot">
+    <div class="logo-wrap">
+      <div class="logo-main">CINTAC<sup>®</sup></div>
+      <div class="logo-sub">Una empresa del
+        <span class="grupo"><small>GRUPO</small>CINTAC</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MODAL: CAMBIO OBLIGATORIO DE CONTRASEÑA ===================== -->
+<div class="modal-overlay" id="pwModal" role="dialog" aria-modal="true" aria-labelledby="pwTitle" hidden>
+  <div class="modal-card">
+    <h2 id="pwTitle">Cambio de contraseña obligatorio</h2>
+    <p id="pwIntro">Es tu primer ingreso. Debes reemplazar la contraseña temporal por una propia para continuar.</p>
+    <form id="pwForm" autocomplete="off" novalidate>
+      <div class="field">
+        <label for="pw1">Nueva contraseña</label>
+        <input type="password" id="pw1" autocomplete="new-password">
+      </div>
+      <div class="field">
+        <label for="pw2">Repetir contraseña</label>
+        <input type="password" id="pw2" autocomplete="new-password">
+      </div>
+      <ul class="reqs" id="pwReqs"></ul>
+      <div class="error" id="pwError" role="alert" aria-live="polite"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="pwCancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar y continuar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app" hidden>
+  <aside>
+    <div class="brand">CINTAC</div>
+    <nav>
+      <button class="active" data-mod="mod1"> Simulador de Cotización</button>
+      <button data-mod="mod2"> Comparador de Embarcadores</button>
+      <button data-mod="mod3"> Mantenedor de Tarifas</button>
+      <button data-mod="mod4"> Gestión de Usuarios</button>
+    </nav>
+    <div class="side-foot">
+      <div id="sessInfo">Sesión: —</div>
+      Área COMEX · v1.2 Prototipo
+      <button class="btn btn-outline btn-block" id="btnLogout">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- ============ MÓDULO 1: SIMULADOR ============ -->
+    <section id="mod1">
+      <div class="page-head">
+        <h1>Simulador de Cotización</h1>
+        <p>Calcula el costo de importación puesto en bodega: flete, contingencia, aranceles e IVA.</p>
+      </div>
+
+      <div class="layout-sim">
+        <div class="card">
+          <h3>Datos de la operación</h3>
+
+          <div class="grid2">
+            <div class="field"><label for="s_ref">Referencia / N° importación</label><input type="text" id="s_ref" placeholder="Ej: IMP-2026-118"></div>
+            <div class="field"><label for="s_sol">Solicitante</label><input type="text" id="s_sol" placeholder="Nombre"></div>
+          </div>
+
+          <div class="section-title">Ruta y embarcador</div>
+          <div class="field">
+            <label for="s_tarifa">Tarifa (ruta · embarcador)</label>
+            <select id="s_tarifa"></select>
+          </div>
+
+          <div class="section-title">Carga</div>
+          <div class="grid2">
+            <div class="field"><label for="s_ton">Toneladas</label><input type="number" id="s_ton" min="0" step="0.1" value="60"></div>
+            <div class="field"><label for="s_cont">Contenedores</label><input type="number" id="s_cont" min="0" step="1"></div>
+          </div>
+
+          <div class="weight" id="weightBox"></div>
+
+          <div class="section-title">Valores y tránsito</div>
+          <div class="grid2">
+            <div class="field"><label for="s_fob">Valor FOB (USD)</label><input type="number" id="s_fob" min="0" step="100" value="85000"></div>
+            <div class="field"><label for="s_dias">Días de tránsito</label><input type="number" id="s_dias" min="1" step="1" value="32"></div>
+          </div>
+          <div class="field"><label for="s_tc">Tipo de cambio (CLP por USD)</label><input type="number" id="s_tc" min="1" step="0.01" value="950"></div>
+
+          <label class="check" for="s_tlc">
+            <input type="checkbox" id="s_tlc">
+            <span>Acogido a TLC<small>Arancel 0% (sin TLC: 6% sobre CIF)</small></span>
+          </label>
+        </div>
+
+        <div class="card" id="resultCard">
+          <h3>Resultado de la cotización <span class="pill" id="cotTag">—</span></h3>
+          <div id="simResult"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MÓDULO 2: COMPARADOR ============ -->
+    <section id="mod2" hidden>
+      <div class="page-head">
+        <h1>Comparador de Embarcadores</h1>
+        <p>Evalúa las alternativas disponibles para una misma ruta y detecta la opción más conveniente.</p>
+      </div>
+      <div class="card">
+        <h3>Parámetros de comparación</h3>
+        <div class="grid3">
+          <div class="field"><label for="c_ruta">Ruta</label><select id="c_ruta"></select></div>
+          <div class="field"><label for="c_ton">Toneladas</label><input type="number" id="c_ton" min="0" step="0.1" value="60"></div>
+          <div class="field"><label for="c_fob">Valor FOB (USD)</label><input type="number" id="c_fob" min="0" step="100" value="85000"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label for="c_tc">Tipo de cambio (CLP por USD)</label><input type="number" id="c_tc" min="1" step="0.01" value="950"></div>
+          <label class="check" for="c_tlc" style="margin-top:19px">
+            <input type="checkbox" id="c_tlc">
+            <span>Acogido a TLC<small>Arancel 0%</small></span>
+          </label>
+        </div>
+      </div>
+      <div id="cmpResult"></div>
+    </section>
+
+    <!-- ============ MÓDULO 3: MANTENEDOR DE TARIFAS ============ -->
+    <section id="mod3" hidden>
+      <div class="page-head">
+        <h1>Mantenedor de Tarifas CINTAC</h1>
+        <p>Administra las tarifas de flete vigentes. Los cambios se guardan en la base de datos del sistema.</p>
+      </div>
+      <div class="card" style="margin-bottom:22px">
+        <h3>Agregar nueva tarifa</h3>
+        <div class="form-row">
+          <div><label for="t_emb">Embarcador</label><input type="text" id="t_emb" placeholder="Ej: ONE"></div>
+          <div><label for="t_ori">Puerto origen</label><input type="text" id="t_ori" placeholder="Ej: Shanghai"></div>
+          <div><label for="t_des">Puerto destino</label><input type="text" id="t_des" placeholder="Ej: San Antonio"></div>
+          <div><label for="t_cobro">Tipo de cobro</label>
+            <select id="t_cobro"><option value="contenedor">Por contenedor</option><option value="tonelada">Por tonelada</option></select></div>
+          <div><label for="t_monto">Tarifa (USD)</label><input type="number" id="t_monto" min="0" step="0.01" placeholder="0.00"></div>
+          <div><label for="t_dias">Tránsito (días)</label><input type="number" id="t_dias" min="1" step="1" placeholder="30"></div>
+          <div><button class="btn btn-primary btn-block" id="btnAddTarifa">＋ Agregar</button></div>
+        </div>
+        <div class="error" id="tarifaError"></div>
+      </div>
+
+      <div class="card">
+        <h3>Tarifas vigentes <span class="pill" id="tarifaCount">0</span></h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Embarcador</th><th>Origen</th><th>Destino</th><th>Cobro</th><th class="num">Tarifa USD</th><th class="num">Tránsito</th><th></th></tr></thead>
+            <tbody id="tarifaBody"></tbody>
+          </table>
+        </div>
+        <div class="actions"><button class="btn btn-outline" id="btnReset">↺ Restaurar tarifas de ejemplo</button></div>
+      </div>
+    </section>
+
+    <!-- ============ MÓDULO 4: GESTIÓN DE USUARIOS ============ -->
+    <section id="mod4" hidden>
+      <div class="page-head">
+        <h1>Gestión de Usuarios</h1>
+        <p>Crea usuarios con contraseña temporal, desbloquea cuentas y administra roles. Los datos se guardan en la base de datos del sistema.</p>
+      </div>
+
+      <div id="tempBox" class="temp-box" hidden></div>
+
+      <div class="card" style="margin-bottom:22px">
+        <h3>Crear usuario</h3>
+        <div class="form-row">
+          <div><label for="u_nombre">Nombre completo</label><input type="text" id="u_nombre" placeholder="Ej: María Pérez"></div>
+          <div><label for="u_user">Correo / Usuario</label><input type="text" id="u_user" placeholder="Ej: mperez@cintac.cl"></div>
+          <div><label for="u_rol">Rol</label>
+            <select id="u_rol"><option value="Analista">Analista</option><option value="Administrador">Administrador</option></select></div>
+          <div><button class="btn btn-primary btn-block" id="btnAddUser">＋ Crear usuario</button></div>
+        </div>
+        <div class="error" id="userError"></div>
+        <small style="color:var(--muted)">Se asigna una contraseña temporal automática. El usuario deberá cambiarla en su primer ingreso.</small>
+      </div>
+
+      <div class="card">
+        <h3>Usuarios registrados <span class="pill" id="userCount">0</span></h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Correo / Usuario</th><th>Rol</th><th>Estado</th><th>Contraseña</th><th></th></tr></thead>
+            <tbody id="userBody"></tbody>
+          </table>
+        </div>
+        <div class="actions"><button class="btn btn-outline" id="btnResetUsers">↺ Restaurar usuarios de ejemplo</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+<div id="printArea"></div>
+<script src="{% static 'cotizador/js/app.js' %}"></script>
+</body>
+</html>
