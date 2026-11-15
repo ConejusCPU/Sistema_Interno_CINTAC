@@ -58,7 +58,6 @@ Pruebas: `DEBUG=1 python manage.py test`.
 3. Cuando lo pida, define `ADMIN_INITIAL_PASSWORD` (clave temporal del primer Administrador).
 4. Al terminar el despliegue, abre la URL, ingresa con `admin_cintac` y cambia la clave.
 5. Para ajustar el margen de contingencia, entra a `/admin/` con el mismo usuario.
-
 > **Base de datos gratuita:** el plan `free` de PostgreSQL en Render **expira y se borra con sus datos** (revisa el plazo vigente
 > en la documentación de Render). Para uso real cambia `plan: free` por un plan de pago en `render.yaml`.
 > El servicio web gratuito también se «duerme» tras un rato sin tráfico: la primera carga puede tardar.

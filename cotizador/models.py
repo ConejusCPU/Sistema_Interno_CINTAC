@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -137,3 +138,17 @@ class TramoContingencia(models.Model):
             otros = TramoContingencia.objects.filter(dias_hasta__isnull=True).exclude(pk=self.pk)
             if otros.exists():
                 raise ValidationError("Ya existe un tramo sin límite de días. Solo puede haber uno.")
+
+class RegistroAccion(models.Model):
+    fecha = models.DateTimeField("fecha y hora", auto_now_add=True, db_index=True)
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                on_delete=models.SET_NULL, related_name="acciones")
+    usuario_texto = models.CharField("usuario", max_length=150, blank=True)  # se conserva aunque borren la cuenta
+    accion = models.CharField("acción", max_length=40, db_index=True)
+    detalle = models.CharField(max_length=500, blank=True)
+    ip = models.GenericIPAddressField("IP", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-fecha"]
+        verbose_name = "registro de acción"
+        verbose_name_plural = "registro de acciones"

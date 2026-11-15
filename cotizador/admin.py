@@ -3,7 +3,18 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import AdminUserCreationForm, UserChangeForm
 
 from .models import Tarifa, TramoContingencia, Usuario
+from .models import RegistroAccion
 
+@admin.register(RegistroAccion)
+class RegistroAccionAdmin(admin.ModelAdmin):
+    list_display = ("fecha", "usuario_texto", "accion", "detalle", "ip")
+    list_filter = ("accion", "fecha")
+    search_fields = ("usuario_texto", "detalle")
+    date_hierarchy = "fecha"
+
+    def has_add_permission(self, request): return False
+    def has_change_permission(self, request, obj=None): return False
+    def has_delete_permission(self, request, obj=None): return False
 
 class UsuarioCreationForm(AdminUserCreationForm):
     class Meta(AdminUserCreationForm.Meta):

@@ -12,7 +12,8 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
-
+from .auditoria import registrar
+    
 from .constants import (
     MAX_INTENTOS, MAX_TON_CONT, PERMISOS, PW_PENDING_SEGUNDOS, ROL_ADMIN, ROL_ANALISTA,
     TARIFAS_EJEMPLO,
@@ -134,9 +135,11 @@ def login_vista(request):
         u = Usuario.objects.select_for_update().filter(username__iexact=nombre).first()
         if u is None or not u.is_active:
             check_password(clave, hash_falso())            # tiempo de respuesta parejo
+            registrar(request, "LOGIN_FALLIDO", f"usuario inexistente: {nombre}")
             return error("Usuario o contraseña incorrectos.", 401)
 
         if u.bloqueado:
+            registrar(request, "LOGIN_CUENTA_BLOQUEADA", usuario=u)
             return error("Cuenta bloqueada por intentos fallidos. Contacta a un Administrador "
                          "para desbloquearla.", 423, aviso=True)
 
@@ -152,6 +155,8 @@ def login_vista(request):
                        + ("queda 1 intento" if quedan == 1 else f"quedan {quedan} intentos")
                        + " antes del bloqueo.")
             u.save(update_fields=["intentos_fallidos", "bloqueado"])
+            registrar(request, "LOGIN_FALLIDO", f"intento {u.intentos_fallidos} de {MAX_INTENTOS}", usuario=u)
+
             return error(msg, 401, aviso=True)
 
         u.intentos_fallidos = 0
@@ -162,6 +167,7 @@ def login_vista(request):
         logout(request)
         request.session.cycle_key()
         request.session["pw_pendiente"] = {"id": u.pk, "ts": time.time()}
+        registrar(request, "LOGIN_CLAVE_TEMPORAL", "debe cambiar su contraseña", usuario=u)
         return JsonResponse({"ok": True, "requiereCambioClave": True, "nombre": u.nombre})
 
     login(request, u, backend=BACKEND)
@@ -170,9 +176,10 @@ def login_vista(request):
 
 @api("POST", auth=False)
 def logout_vista(request):
+    registrar(request, "LOGOUT")
     logout(request)
     return JsonResponse({"ok": True})
-
+#----------------------------------------------------------------------------------------------
 
 def _usuario_pendiente(request):
     p = request.session.get("pw_pendiente")
@@ -208,6 +215,7 @@ def cambiar_clave(request):
     u.save()
     request.session.pop("pw_pendiente", None)
     login(request, u, backend=BACKEND)
+    registrar(request, "CLAVE_CAMBIADA", usuario=u)
     return JsonResponse({"ok": True, "usuario": serializar_usuario(u), "config": configuracion(),
                          "mensaje": "Contraseña actualizada correctamente."})
 
@@ -287,6 +295,7 @@ def tarifas(request):
         return error(msg)
     Tarifa.objects.create(embarcador=emb, origen=ori, destino=des, cobro=cobro,
                           monto=round(monto, 2), dias=int(dias))
+    registrar(request, "TARIFA_CREADA", f"{emb}: {ori} → {des} ({cobro}, US$ {round(monto, 2)})")   # <--auditoria
     return JsonResponse({"tarifas": lista_tarifas(), "mensaje": "Tarifa agregada"})
 
 
@@ -295,7 +304,10 @@ def tarifa_detalle(request, pk):
     denegado = exigir_admin(request)
     if denegado:
         return denegado
-    Tarifa.objects.filter(pk=pk).delete()
+    t = Tarifa.objects.filter(pk=pk).first()
+    if t:
+        registrar(request, "TARIFA_ELIMINADA", f"{t.embarcador}: {t.origen} → {t.destino}")
+        t.delete()
     return JsonResponse({"tarifas": lista_tarifas(), "mensaje": "Tarifa eliminada"})
 
 
@@ -310,6 +322,7 @@ def tarifas_restaurar(request):
             Tarifa(embarcador=e, origen=o, destino=d, cobro=c, monto=m, dias=dias)
             for e, o, d, c, m, dias in TARIFAS_EJEMPLO
         ])
+    registrar(request, "TARIFAS_RESTAURADAS", "se restauraron las tarifas de ejemplo")
     return JsonResponse({"tarifas": lista_tarifas(), "mensaje": "Tarifas restauradas"})
 
 
@@ -346,6 +359,7 @@ def usuarios(request):
             nuevo.save()
     except IntegrityError:
         return error(duplicado)
+    registrar(request, "USUARIO_CREADO", f"{usuario} ({rol})")
     return JsonResponse({"usuarios": lista_usuarios(),
                          "temporal": {"usuario": usuario, "clave": temporal}})
 
@@ -362,6 +376,7 @@ def usuario_detalle(request, pk):
         return error("No puedes eliminar tu propio usuario con la sesión activa.")
     if u.rol == ROL_ADMIN and Usuario.objects.filter(rol=ROL_ADMIN).count() <= 1:
         return error("Debe existir al menos un Administrador.")
+    registrar(request, "USUARIO_ELIMINADO", f"{u.username} ({u.rol})")
     u.delete()
     return JsonResponse({"usuarios": lista_usuarios(), "mensaje": "Usuario eliminado"})
 
@@ -377,6 +392,7 @@ def usuario_desbloquear(request, pk):
     u.bloqueado = False
     u.intentos_fallidos = 0
     u.save(update_fields=["bloqueado", "intentos_fallidos"])
+    registrar(request, "USUARIO_DESBLOQUEADO", u.username)
     return JsonResponse({"usuarios": lista_usuarios(),
                          "mensaje": f'Usuario "{u.username}" desbloqueado.'})
 
@@ -396,32 +412,6 @@ def usuario_restablecer(request, pk):
     u.primer_ingreso = True
     u.intentos_fallidos = 0
     u.save()
+    registrar(request, "CLAVE_RESTABLECIDA", u.username)
     return JsonResponse({"usuarios": lista_usuarios(),
                          "temporal": {"usuario": u.username, "clave": temporal}})
-
-
-@api("POST")
-def usuarios_restaurar(request):
-    """Equivalente a «Restaurar usuarios de ejemplo». Deshabilitado salvo ALLOW_EXAMPLE_USERS_RESET=1."""
-    denegado = exigir_admin(request)
-    if denegado:
-        return denegado
-    if not settings.PERMITIR_RESTAURAR_USUARIOS_EJEMPLO:
-        return error("Esta acción está deshabilitada en el servidor (borraría todos los usuarios). "
-                     "Para habilitarla define ALLOW_EXAMPLE_USERS_RESET=1.", 403, codigo="deshabilitado")
-    ejemplos = [("admin_cintac", "Administrador CINTAC", ROL_ADMIN),
-                ("analista1", "Analista de Importaciones 1", ROL_ANALISTA),
-                ("analista2", "Analista de Importaciones 2", ROL_ANALISTA)]
-    temporales = []
-    with transaction.atomic():
-        Usuario.objects.exclude(pk=request.user.pk).delete()      # la sesión actual se conserva
-        for username, nombre, rol in ejemplos:
-            if username.lower() == request.user.username.lower():
-                continue
-            temporal = generar_temporal()
-            nuevo = Usuario(username=username, nombre=nombre, rol=rol, primer_ingreso=True)
-            nuevo.set_password(temporal)
-            nuevo.save()
-            temporales.append({"usuario": username, "clave": temporal})
-    return JsonResponse({"usuarios": lista_usuarios(), "temporales": temporales,
-                         "mensaje": "Usuarios restaurados"})
